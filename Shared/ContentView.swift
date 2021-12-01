@@ -8,6 +8,9 @@
 import SwiftUI
 
 struct ContentView: View {
+    
+    @StateObject var connectivity = ConnectivityService()
+    
     var body: some View {
         Text("Hello, world!")
             .padding()
