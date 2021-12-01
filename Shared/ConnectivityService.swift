@@ -29,6 +29,10 @@ enum Role: String, Codable {
 
 class ConnectivityService: NSObject, ObservableObject {
     
+    public let role: Role
+    
+    @Published var connectedPeers: [MCPeerID] = []
+    
     private let serviceType = "ibike-fitter"
     private let session: MCSession
     private let serviceBrowser: MCNearbyServiceBrowser
@@ -37,8 +41,9 @@ class ConnectivityService: NSObject, ObservableObject {
     private let log = Logger()
     
     
-    override init() {
+    init(role: Role) {
 
+        self.role = role
         #if os(macOS)
             peerID = MCPeerID(displayName: Host.current().name!)
         #else
@@ -74,6 +79,10 @@ extension ConnectivityService: MCNearbyServiceAdvertiserDelegate {
 
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
         log.info("didReceiveInvitationFromPeer \(peerID)")
+        if self.role == .slave {
+            // as slave we accept the invitation to conenct to master
+            invitationHandler(true, session)
+        }
     }
 }
 
@@ -84,6 +93,11 @@ extension ConnectivityService: MCNearbyServiceBrowserDelegate {
 
     func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String: String]?) {
         log.info("ServiceBrowser found peer: \(peerID)")
+        
+        if self.role == .master {
+            // as master we will invite the peers found
+            browser.invitePeer(peerID, to: self.session, withContext: nil, timeout: 10)
+        }
     }
 
     func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
@@ -95,6 +109,9 @@ extension ConnectivityService: MCNearbyServiceBrowserDelegate {
 extension ConnectivityService: MCSessionDelegate {
     func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
         log.info("peer \(peerID) didChangeState: \(state.rawValue)")
+        DispatchQueue.main.async {
+            self.connectedPeers = session.connectedPeers
+        }
     }
 
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {

@@ -8,8 +8,8 @@
 import SwiftUI
 
 struct ContentView: View {
-    
-    @StateObject var connectivity = ConnectivityService()
+        
+    @StateObject var connectivity = ConnectivityService(role: .slave)
     
     var body: some View {
         Text("Hello, world!")
