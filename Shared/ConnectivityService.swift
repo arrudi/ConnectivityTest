@@ -32,6 +32,7 @@ class ConnectivityService: NSObject, ObservableObject {
     public let role: Role
     
     @Published var connectedPeers: [MCPeerID] = []
+    @Published var messages: [String] = ["START"]
     
     private let serviceType = "ibike-fitter"
     private let session: MCSession
@@ -62,11 +63,24 @@ class ConnectivityService: NSObject, ObservableObject {
         
         serviceAdvertiser.startAdvertisingPeer()
         serviceBrowser.startBrowsingForPeers()
+        
     }
     
     deinit {
         serviceAdvertiser.stopAdvertisingPeer()
         serviceBrowser.stopBrowsingForPeers()
+    }
+    
+    func send(message: String) {
+        log.info("send: \(message)) to \(self.session.connectedPeers.count) peers")
+
+        if !session.connectedPeers.isEmpty {
+            do {
+                try session.send(message.data(using: .utf8)!, toPeers: session.connectedPeers, with: .reliable)
+            } catch {
+                log.error("Error for sending: \(String(describing: error))")
+            }
+        }
     }
     
 }
@@ -75,40 +89,41 @@ class ConnectivityService: NSObject, ObservableObject {
 extension ConnectivityService: MCNearbyServiceAdvertiserDelegate {
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: Error) {
         log.error("ServiceAdvertiser didNotStartAdvertisingPeer: \(String(describing: error))")
+        messages.append("ServiceAdvertiser didNotStartAdvertisingPeer: \(String(describing: error))")
     }
 
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
-        log.info("didReceiveInvitationFromPeer \(peerID)")
-        if self.role == .slave {
-            // as slave we accept the invitation to conenct to master
-            invitationHandler(true, session)
-        }
+        log.info("didReceiveInvitationFromPeer \(peerID.displayName)")
+        messages.append("didReceiveInvitationFromPeer \(peerID.displayName)")
+        
+        // we've received invitation so we accept
+        invitationHandler(true, session)
     }
 }
 
 extension ConnectivityService: MCNearbyServiceBrowserDelegate {
     func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: Error) {
         log.error("ServiceBrowser didNotStartBrowsingForPeers: \(String(describing: error))")
+        messages.append("ServiceBrowser didNotStartBrowsingForPeers: \(String(describing: error))")
     }
 
     func browser(_ browser: MCNearbyServiceBrowser, foundPeer peerID: MCPeerID, withDiscoveryInfo info: [String: String]?) {
-        log.info("ServiceBrowser found peer: \(peerID)")
-        
-        if self.role == .master {
-            // as master we will invite the peers found
-            browser.invitePeer(peerID, to: self.session, withContext: nil, timeout: 10)
-        }
+        log.info("ServiceBrowser found peer: \(peerID.displayName)")
+        messages.append("ServiceBrowser found peer: \(peerID.displayName)")
+
+        // we invite the peer we've found
+        browser.invitePeer(peerID, to: self.session, withContext: nil, timeout: 10)
     }
 
     func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
-        log.info("ServiceBrowser lost peer: \(peerID)")
+        log.info("ServiceBrowser lost peer: \(peerID.displayName)")
     }
 }
 
 
 extension ConnectivityService: MCSessionDelegate {
     func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
-        log.info("peer \(peerID) didChangeState: \(state.rawValue)")
+        log.info("peer \(peerID.displayName) didChangeState: \(state.rawValue)")
         DispatchQueue.main.async {
             self.connectedPeers = session.connectedPeers
         }
@@ -116,6 +131,17 @@ extension ConnectivityService: MCSessionDelegate {
 
     func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID) {
         log.info("didReceive bytes \(data.count) bytes")
+        if let string = String(data: data, encoding: .utf8) {
+            log.info("Received message \(string)")
+            
+            DispatchQueue.main.async {
+                //now we do something with message
+                self.messages.append(string)
+            }
+        } else {
+            log.info("didReceive invalid value \(data.count) bytes")
+        }
+
     }
 
     public func session(_ session: MCSession, didReceive stream: InputStream, withName streamName: String, fromPeer peerID: MCPeerID) {

@@ -9,12 +9,22 @@ import SwiftUI
 
 struct ContentView: View {
         
-    @StateObject var connectivity = ConnectivityService(role: .slave)
+    @StateObject var connectivity = ConnectivityService(role: .master)
+    
+    var iter = Int(0)
+    
     
     var body: some View {
-        Text("Hello, world!")
-            .padding()
-        
+        VStack {
+            ForEach (connectivity.messages, id: \.self) { text in
+                    Text(text)
+                }
+                .padding()
+            Button("Send", action: {
+                connectivity.send(message: "Mierda \(iter)")
+            })
+        }
+                
     }
 }
 
