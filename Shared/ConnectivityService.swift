@@ -38,6 +38,7 @@ class ConnectivityService: NSObject, ObservableObject {
     private let session: MCSession
     private let serviceBrowser: MCNearbyServiceBrowser
     private let serviceAdvertiser: MCNearbyServiceAdvertiser
+    private let serviceAdvertiserAssistant: MCAdvertiserAssistant
     private let peerID: MCPeerID
     private let log = Logger()
     
@@ -53,15 +54,19 @@ class ConnectivityService: NSObject, ObservableObject {
 
         session = MCSession(peer: peerID, securityIdentity: nil, encryptionPreference: .none)
         serviceAdvertiser = MCNearbyServiceAdvertiser(peer: peerID, discoveryInfo: nil, serviceType: serviceType)
+        serviceAdvertiserAssistant = MCAdvertiserAssistant(serviceType: serviceType, discoveryInfo: nil, session: session)
+        
         serviceBrowser = MCNearbyServiceBrowser(peer: peerID, serviceType: serviceType)
         
         super.init()
         
         session.delegate = self
         serviceAdvertiser.delegate = self
+        serviceAdvertiserAssistant.delegate = self
         serviceBrowser.delegate = self
         
-        serviceAdvertiser.startAdvertisingPeer()
+//        serviceAdvertiser.startAdvertisingPeer()
+        serviceAdvertiserAssistant.start()
         serviceBrowser.startBrowsingForPeers()
         
     }
@@ -83,6 +88,12 @@ class ConnectivityService: NSObject, ObservableObject {
         }
     }
     
+}
+
+extension ConnectivityService: MCAdvertiserAssistantDelegate {
+    func advertiserAssistantDidDismissInvitation(_ advertiserAssistant: MCAdvertiserAssistant) {
+        log.info("advertiserAssistantDidDismissInvitation")
+    }
 }
 
 
